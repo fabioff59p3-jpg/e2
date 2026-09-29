@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizador de Escala de Caixas - Supermercado</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf.js for exporting schedules -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Custom styling & print utilities -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: white;
+            z-index: 10;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.04);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; font-size: 9pt; }
+            .print-full { width: 100% !important; max-width: 100% !important; box-shadow: none !important; }
+            .sticky-col { position: static !important; box-shadow: none !important; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col">
+
+    <header class="bg-indigo-800 text-white shadow-md no-print">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-cash-register text-amber-300"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Organizador de Escala de Caixas</h1>
+                    <p class="text-indigo-200 text-xs">Escala 6x1 • Regras Trabalhistas • Matriz por Caixas (1 a 12)</p>
+                </div>
+            </div>
+
+            <!-- Header Quick Actions -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button id="btnLoadSample" class="bg-indigo-700 hover:bg-indigo-600 text-indigo-100 text-xs font-semibold py-2 px-3 rounded-lg border border-indigo-500/40 transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-bolt text-amber-300"></i>
+                    <span>Equipe Exemplo</span>
+                </button>
+                <button id="btnExportJSON" class="bg-indigo-700 hover:bg-indigo-600 text-indigo-100 text-xs font-semibold py-2 px-3 rounded-lg border border-indigo-500/40 transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Exportar</span>
+                </button>
+                <label class="bg-indigo-700 hover:bg-indigo-600 text-indigo-100 text-xs font-semibold py-2 px-3 rounded-lg border border-indigo-500/40 transition flex items-center gap-2 shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-upload"></i>
+                    <span>Importar</span>
+                    <input type="file" id="inputImportJSON" accept=".json" class="hidden">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <!-- Custom Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 no-print max-w-sm"></div>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 flex-1 w-full space-y-6">
+        
+        <!-- Registration & Employee List Panel -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
+            
+            <!-- Employee Registration Form -->
+            <div class="lg:col-span-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                    <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus text-indigo-600"></i>
+                        Cadastrar Operador
+                    </h2>
+                    <span class="text-[11px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">Formulário</span>
+                </div>
+
+                <form id="employeeForm" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nome Completo</label>
+                        <input type="text" id="empName" required class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition" placeholder="Ex: Maria Santos">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Gênero</label>
+                            <select id="empGender" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition">
+                                <option value="female">Feminino</option>
+                                <option value="male">Masculino</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Turno Preferencial</label>
+                            <select id="empShift" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition">
+                                <option value="any">Qualquer Turno</option>
+                                <option value="Abertura">Abertura (07h)</option>
+                                <option value="Intermediário">Intermediário (10h)</option>
+                                <option value="Fechamento">Fechamento (11h)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 pt-1">
+                        <label class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-indigo-50/50 cursor-pointer transition">
+                            <input type="checkbox" id="empTrained10" class="mt-0.5 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                            <div class="text-xs">
+                                <span class="font-semibold text-slate-800 block">Permitido operar no Caixa 10</span>
+                                <span class="text-slate-500 text-[11px]">Possui treinamento para pagamentos e boletos</span>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-indigo-50/50 cursor-pointer transition">
+                            <input type="checkbox" id="empFixed11" class="mt-0.5 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                            <div class="text-xs">
+                                <span class="font-semibold text-slate-800 block">Fixo Caixa 11 (08:00 às 15:00)</span>
+                                <span class="text-slate-500 text-[11px]">Horário diferenciado e folga fixa aos domingos</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl transition text-sm flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-plus"></i>
+                        Adicionar à Equipe
+                    </button>
+                </form>
+            </div>
+
+            <!-- Employee Roster & Generator Controls -->
+            <div class="lg:col-span-8 bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 flex flex-col">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-100">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-users text-indigo-600"></i>
+                            Equipe de Operadores (<span id="empCount" class="text-indigo-600">0</span>)
+                        </h2>
+                        <p class="text-xs text-slate-500">Recomendado: Mínimo de 12 colaboradores para cobrir todos os caixas e folgas.</p>
+                    </div>
+                    
+                    <!-- Generator Settings Toolbar -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                            <select id="scheduleType" class="p-1.5 bg-transparent text-xs font-semibold text-slate-700 rounded-lg outline-none cursor-pointer">
+                                <option value="weekly">Escala Semanal (7 Dias)</option>
+                                <option value="monthly">Escala Mensal (Mês Completo)</option>
+                            </select>
+                            <input type="month" id="monthPicker" class="p-1 bg-white text-xs font-semibold text-slate-700 rounded-md border border-slate-300 outline-none hidden">
+                        </div>
+
+                        <button id="btnGenerate" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl transition shadow-sm text-xs flex items-center gap-2">
+                            <i class="fa-solid fa-play text-amber-300"></i>
+                            <span>Gerar Escala</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table of Registered Staff -->
+                <div class="overflow-y-auto flex-1 max-h-[320px] border border-slate-200 rounded-xl">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-slate-100 sticky top-0 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px]">
+                            <tr>
+                                <th class="p-3">Operador</th>
+                                <th class="p-3">Gênero</th>
+                                <th class="p-3">Preferência / Atributos Especializados</th>
+                                <th class="p-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeeListBody" class="divide-y divide-slate-100">
+                            <tr id="emptyStateRow">
+                                <td colspan="4" class="p-8 text-center text-slate-400">
+                                    <i class="fa-solid fa-users-slash text-3xl mb-2 text-slate-300 block"></i>
+                                    <p class="text-xs font-medium">Nenhum colaborador cadastrado no momento.</p>
+                                    <p class="text-[11px] text-slate-400 mt-1">Clique em <strong class="text-indigo-600">"Equipe Exemplo"</strong> no topo para testar instantaneamente!</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Generated Schedule Output Section -->
+        <section id="scheduleSection" class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden hidden">
+            
+            <!-- Section Header & Controls -->
+            <div class="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2" id="scheduleTitle">
+                        <i class="fa-solid fa-calendar-check text-indigo-600"></i>
+                        Escala Gerada com Sucesso
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5">Grade ergonômica com alternância de pares/ímpares e escala 6x1 respeitada.</p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button id="btnExportPDF" class="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-3.5 rounded-xl text-xs transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-file-pdf"></i>
+                        <span>Exportar PDF</span>
+                    </button>
+                    <button id="btnPrint" onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2 px-3.5 rounded-xl text-xs transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-print"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- View Navigation Tabs -->
+            <div class="border-b border-slate-200 bg-white px-4 pt-3 flex flex-wrap gap-2 no-print">
+                <button id="tabBtnCaixas" class="py-2.5 px-4 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition cursor-pointer">
+                    <i class="fa-solid fa-cash-register"></i>
+                    <span>Grade por Caixa (Caixas 1 a 12)</span>
+                </button>
+                <button id="tabBtnColaboradores" class="py-2.5 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center gap-2 transition cursor-pointer">
+                    <i class="fa-solid fa-table-cells"></i>
+                    <span>Escala Semanal/Mensal por Colaborador</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: GRADE DIÁRIA POR CAIXA (Matriz Caixas 1 ao 12) -->
+            <div id="tabContentCaixas" class="p-4 sm:p-6 bg-white space-y-4">
+                
+                <!-- Day Selector Banner -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-xl no-print">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-filter text-indigo-600 text-sm"></i>
+                        <span class="text-xs font-bold text-indigo-900 uppercase tracking-wide">Selecione o Dia para Visualizar os Caixas:</span>
+                    </div>
+                    <select id="daySelectorMatrix" class="p-2 bg-white border border-indigo-200 rounded-lg text-xs font-bold text-indigo-900 outline-none shadow-sm cursor-pointer focus:ring-2 focus:ring-indigo-500">
+                        <!-- Filled dynamically by JS -->
+                    </select>
+                </div>
+
+                <div id="pdfContainerMatrix" class="p-2 bg-white">
+                    <div class="mb-4 text-center hidden print:block">
+                        <h1 class="text-xl font-bold uppercase tracking-tight">Grade de Funcionamento dos Caixas</h1>
+                        <p class="text-xs text-slate-600" id="printSubtitleMatrix">Supermercado - Visão por Caixa</p>
+                    </div>
+
+                    <!-- Clean Matrix Table -->
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs border-collapse min-w-[700px]">
+                            <thead id="matrixTableHeader" class="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] border-b border-slate-200">
+                                <!-- Dynamic Headers per Weekday vs Sunday -->
+                            </thead>
+                            <tbody id="matrixTableBody" class="divide-y divide-slate-200">
+                                <!-- Dynamic Rows for Caixas 1 to 12 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Legend Box -->
+                <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap gap-4 text-xs text-slate-600 no-print">
+                    <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-blue-600 rounded"></span> <strong>Caixa 10</strong> (Boletos - 2 Turnos: Abertura e Fechamento)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-indigo-600 rounded"></span> <strong>Caixa 12</strong> (Turno Duplo: Abertura e Fechamento)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-purple-600 rounded"></span> <strong>Caixa 11</strong> (Fixo - 1 Operador)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-3 h-3 bg-emerald-600 rounded"></span> <strong>Caixas 1 a 9</strong> (Apenas 1 Operador por Caixa no seu Turno)</div>
+                    <div class="flex items-center gap-1.5"><span class="w-3 h-3 border border-dashed border-slate-300 bg-white rounded"></span> Espaço limpo = Caixa Fechado</div>
+                </div>
+            </div>
+
+            <!-- TAB 2: ESCALA GERAL POR COLABORADOR -->
+            <div id="tabContentColaboradores" class="p-4 sm:p-6 bg-white hidden space-y-4">
+                
+                <div id="pdfContainerGeneral" class="p-2 bg-white">
+                    <div class="mb-4 text-center hidden print:block">
+                        <h1 class="text-xl font-bold uppercase tracking-tight">Escala de Trabalho dos Colaboradores</h1>
+                        <p class="text-xs text-slate-600" id="printSubtitleGeneral">Supermercado - Visão Geral</p>
+                    </div>
+
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table class="w-full text-left text-xs min-w-[900px] border-collapse">
+                            <thead id="generalHeader" class="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] border-b border-slate-200">
+                                <!-- Injected dynamically by JS -->
+                            </thead>
+                            <tbody id="generalBody" class="divide-y divide-slate-200">
+                                <!-- Injected dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="bg-slate-800 text-slate-400 text-xs py-4 px-6 text-center mt-auto no-print border-t border-slate-700">
+        <p>Organizador de Escala de Caixas de Supermercado &copy; 2026 • Sistema de Distribuição Automática 6x1</p>
+    </footer>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        let employees = [];
+        let nextId = 1;
+        let currentScheduleData = null; // Stores generated schedule result
+
+        // Standard Shifts Reference Labels
+        const SHIFT_HOURS = {
+            'Abertura': '07:00 às 16:20', 
+            'Intermediário': '10:00 às 19:00', 
+            'Fechamento': '11:00 às 20:20', 
+            'Fixo': '08:00 às 15:00',
+            'Entrada 07:00': '07:00 às 14:00',
+            'Entrada 08:00': '08:00 às 14:00'
+        };
+
+        const WEEKDAYS_PT = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+        // DOM Handles
+        const form = document.getElementById('employeeForm');
+        const listBody = document.getElementById('employeeListBody');
+        const emptyStateRow = document.getElementById('emptyStateRow');
+        const empCountLabel = document.getElementById('empCount');
+        
+        const scheduleType = document.getElementById('scheduleType');
+        const monthPicker = document.getElementById('monthPicker');
+        const btnGenerate = document.getElementById('btnGenerate');
+        
+        const scheduleSection = document.getElementById('scheduleSection');
+        const scheduleTitle = document.getElementById('scheduleTitle');
+        
+        const tabBtnCaixas = document.getElementById('tabBtnCaixas');
+        const tabBtnColaboradores = document.getElementById('tabBtnColaboradores');
+        const tabContentCaixas = document.getElementById('tabContentCaixas');
+        const tabContentColaboradores = document.getElementById('tabContentColaboradores');
+        
+        const daySelectorMatrix = document.getElementById('daySelectorMatrix');
+        const matrixTableHeader = document.getElementById('matrixTableHeader');
+        const matrixTableBody = document.getElementById('matrixTableBody');
+        
+        const generalHeader = document.getElementById('generalHeader');
+        const generalBody = document.getElementById('generalBody');
+
+        const btnExportJSON = document.getElementById('btnExportJSON');
+        const inputImportJSON = document.getElementById('inputImportJSON');
+        const btnLoadSample = document.getElementById('btnLoadSample');
+        const btnExportPDF = document.getElementById('btnExportPDF');
+
+        // Set default current month in input picker
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = String(now.getMonth() + 1).padStart(2, '0');
+        monthPicker.value = `${curYear}-${curMonth}`;
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white';
+            let icon = 'fa-info-circle';
+            
+            if (type === 'success') { bgClass = 'bg-emerald-600 text-white'; icon = 'fa-check-circle'; }
+            if (type === 'error') { bgClass = 'bg-rose-600 text-white'; icon = 'fa-exclamation-triangle'; }
+            if (type === 'warning') { bgClass = 'bg-amber-500 text-white'; icon = 'fa-exclamation-circle'; }
+
+            toast.className = `${bgClass} p-3.5 rounded-xl shadow-lg text-xs font-semibold flex items-center gap-2.5 transition-all transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
+            
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        scheduleType.addEventListener('change', () => {
+            if (scheduleType.value === 'monthly') {
+                monthPicker.classList.remove('hidden');
+            } else {
+                monthPicker.classList.add('hidden');
+            }
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('empName').value.trim();
+            const gender = document.getElementById('empGender').value;
+            const preferredShift = document.getElementById('empShift').value;
+            const trained10 = document.getElementById('empTrained10').checked;
+            const fixed11 = document.getElementById('empFixed11').checked;
+
+            if (fixed11 && employees.some(emp => emp.fixed11)) {
+                showToast('Já existe um colaborador fixo no Caixa 11.', 'warning');
+                return;
+            }
+
+            const emp = { id: nextId++, name, gender, preferredShift, trained10, fixed11 };
+            employees.push(emp);
+            
+            form.reset();
+            renderEmployees();
+            showToast(`Operador ${name} adicionado com sucesso!`, 'success');
+        });
+
+        function removeEmployee(id) {
+            employees = employees.filter(emp => emp.id !== id);
+            renderEmployees();
+            showToast('Colaborador removido da equipe.', 'info');
+        }
+
+        function renderEmployees() {
+            empCountLabel.textContent = employees.length;
+            
+            if (employees.length === 0) {
+                emptyStateRow.style.display = 'table-row';
+                listBody.innerHTML = '';
+                listBody.appendChild(emptyStateRow);
+                return;
+            }
+            
+            emptyStateRow.style.display = 'none';
+            listBody.innerHTML = '';
+            
+            employees.forEach(emp => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors border-b border-slate-100";
+                
+                let badges = [];
+                if (emp.preferredShift !== 'any') {
+                    badges.push(`<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md text-[11px] font-semibold"><i class="fa-regular fa-clock text-slate-400 mr-1"></i>${emp.preferredShift}</span>`);
+                } else {
+                    badges.push('<span class="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[11px] font-semibold">Flexível</span>');
+                }
+                if (emp.trained10) badges.push('<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-md text-[11px] font-bold"><i class="fa-solid fa-receipt mr-1"></i>Cx 10 (Boletos)</span>');
+                if (emp.fixed11) badges.push('<span class="px-2 py-0.5 bg-purple-100 text-purple-800 rounded-md text-[11px] font-bold"><i class="fa-solid fa-lock mr-1"></i>Cx 11 (Fixo)</span>');
+                if (emp.gender === 'female') badges.push('<span class="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-md text-[11px] font-semibold">Regra Dom. 1x1</span>');
+
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold text-slate-800">${emp.name}</td>
+                    <td class="p-3 capitalize text-slate-600">${emp.gender === 'female' ? 'Feminino' : 'Masculino'}</td>
+                    <td class="p-3"><div class="flex gap-1.5 flex-wrap">${badges.join('')}</div></td>
+                    <td class="p-3 text-center">
+                        <button onclick="removeEmployee(${emp.id})" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors" title="Remover operador">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                listBody.appendChild(tr);
+            });
+        }
+
+        btnLoadSample.addEventListener('click', () => {
+            employees = [
+                { id: 1, name: 'Ana Paula Silva', gender: 'female', preferredShift: 'Abertura', trained10: true, fixed11: false },
+                { id: 2, name: 'Carlos Eduardo', gender: 'male', preferredShift: 'Fechamento', trained10: true, fixed11: false },
+                { id: 3, name: 'Juliana Costa', gender: 'female', preferredShift: 'Intermediário', trained10: false, fixed11: false },
+                { id: 4, name: 'Roberto Lima (Cx 11)', gender: 'male', preferredShift: 'Fixo', trained10: false, fixed11: true },
+                { id: 5, name: 'Fernanda Oliveira', gender: 'female', preferredShift: 'Abertura', trained10: true, fixed11: false },
+                { id: 6, name: 'Lucas Gabriel', gender: 'male', preferredShift: 'Fechamento', trained10: false, fixed11: false },
+                { id: 7, name: 'Mariana Alves', gender: 'female', preferredShift: 'any', trained10: false, fixed11: false },
+                { id: 8, name: 'Rodrigo Souza', gender: 'male', preferredShift: 'Abertura', trained10: true, fixed11: false },
+                { id: 9, name: 'Patricia Rocha', gender: 'female', preferredShift: 'Fechamento', trained10: false, fixed11: false },
+                { id: 10, name: 'Thiago Martins', gender: 'male', preferredShift: 'Intermediário', trained10: false, fixed11: false },
+                { id: 11, name: 'Beatriz Ramos', gender: 'female', preferredShift: 'any', trained10: false, fixed11: false },
+                { id: 12, name: 'Gabriel Santos', gender: 'male', preferredShift: 'Abertura', trained10: false, fixed11: false }
+            ];
+            nextId = 13;
+            renderEmployees();
+            showToast('Equipe padrão de 12 operadores carregada!', 'success');
+        });
+
+        btnExportJSON.addEventListener('click', () => {
+            if (employees.length === 0) {
+                showToast('Nenhum colaborador na lista para exportar.', 'warning');
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(employees, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", "equipe-caixas-supermercado.json");
+            dlAnchorElem.click();
+        });
+
+        inputImportJSON.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (Array.isArray(imported)) {
+                        employees = imported;
+                        nextId = Math.max(...employees.map(e => e.id), 0) + 1;
+                        renderEmployees();
+                        showToast('Equipe de operadores importada com sucesso!', 'success');
+                    }
+                } catch (err) {
+                    showToast('Arquivo JSON inválido.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function buildDatesList(isMonthly) {
+            let dates = [];
+            if (!isMonthly) {
+                // 7 days starting from Monday
+                WEEKDAYS_PT.forEach((w, idx) => {
+                    dates.push({
+                        id: `day_${idx}`,
+                        dayName: w,
+                        dateLabel: w,
+                        weekIndex: 1,
+                        isSunday: w === 'Domingo'
+                    });
+                });
+            } else {
+                // Monthly dates
+                const [yearStr, monthStr] = monthPicker.value.split('-');
+                const year = parseInt(yearStr);
+                const month = parseInt(monthStr) - 1; // 0-indexed
+                
+                const totalDays = new Date(year, month + 1, 0).getDate();
+                let currentWeek = 1;
+
+                for (let d = 1; d <= totalDays; d++) {
+                    const dateObj = new Date(year, month, d);
+                    const dayOfWeekIdx = dateObj.getDay(); // 0 is Sunday, 1 is Monday...
+                    
+                    let dayName = WEEKDAYS_PT[(dayOfWeekIdx + 6) % 7]; 
+                    
+                    dates.push({
+                        id: `date_${d}`,
+                        dayName: dayName,
+                        dateLabel: `${dayName} (${String(d).padStart(2,'0')}/${String(month+1).padStart(2,'0')})`,
+                        dayNumber: d,
+                        weekIndex: currentWeek,
+                        isSunday: (dayOfWeekIdx === 0)
+                    });
+
+                    if (dayOfWeekIdx === 0) {
+                        currentWeek++;
+                    }
+                }
+            }
+            return dates;
+        }
+
+        btnGenerate.addEventListener('click', () => {
+            if (employees.length === 0) {
+                showToast('Cadastre ou carregue ao menos um grupo de colaboradores.', 'error');
+                return;
+            }
+
+            if (employees.length < 6) {
+                showToast('Recomendado ter pelo menos 6 operadores para preencher a escala reduzida de domingo.', 'warning');
+            }
+
+            const isMonthly = (scheduleType.value === 'monthly');
+            const datesList = buildDatesList(isMonthly);
+            
+            const scheduleResult = generateEngine(datesList);
+            currentScheduleData = scheduleResult;
+            
+            renderScheduleUI(scheduleResult, isMonthly);
+            showToast('Escala gerada com sucesso!', 'success');
+        });
+
+        function generateEngine(datesList) {
+            let schedule = {};
+            employees.forEach(e => { schedule[e.id] = {}; });
+
+            let empState = {};
+            employees.forEach(e => {
+                empState[e.id] = {
+                    consecutiveWorkDays: 0,
+                    workedSundayInWeek: {},
+                    lastParity: null // 'odd' or 'even'
+                };
+            });
+
+            datesList.forEach((dateInfo) => {
+                const dayKey = dateInfo.id;
+                const isSunday = dateInfo.isSunday;
+                const weekIdx = dateInfo.weekIndex;
+
+                let available = [...employees];
+                let todayOffs = [];
+
+                // RULE A: Fixed Caixa 11 ALWAYS gets Sunday OFF
+                employees.forEach(e => {
+                    if (e.fixed11 && isSunday) {
+                        schedule[e.id][dayKey] = { type: 'Folga', reason: 'Fixo Cx 11 - Fechado no Domingo' };
+                        todayOffs.push(e.id);
+                    }
+                });
+
+                // RULE B: Consecutive Days Safety (6x1 Rule) - Max 6 work days before forced Folga
+                employees.forEach(e => {
+                    if (!todayOffs.includes(e.id) && empState[e.id].consecutiveWorkDays >= 6) {
+                        schedule[e.id][dayKey] = { type: 'Folga', reason: 'Limite Legal 6x1' };
+                        todayOffs.push(e.id);
+                    }
+                });
+
+                // RULE C: Females Alternating Sundays (Cannot work 2 Sundays in a row)
+                if (isSunday) {
+                    employees.forEach(e => {
+                        if (e.gender === 'female' && !todayOffs.includes(e.id)) {
+                            let prevWeekSundayWorked = empState[e.id].workedSundayInWeek[weekIdx - 1];
+                            if (prevWeekSundayWorked) {
+                                schedule[e.id][dayKey] = { type: 'Folga', reason: 'Regra Trabalhista Mulheres (Dom 1x1)' };
+                                todayOffs.push(e.id);
+                            }
+                        }
+                    });
+
+                    // On Sunday, limit working staff to exactly 6 operators total
+                    let currentWorking = available.filter(e => !todayOffs.includes(e.id));
+                    if (currentWorking.length > 6) {
+                        // Prioritize giving women and workers with higher consecutive days Sunday OFF
+                        currentWorking.sort((a, b) => {
+                            if (a.gender === 'female' && b.gender !== 'female') return -1;
+                            if (b.gender === 'female' && a.gender !== 'female') return 1;
+                            return empState[b.id].consecutiveWorkDays - empState[a.id].consecutiveWorkDays;
+                        });
+                        
+                        while (currentWorking.length > 6) {
+                            let offEmp = currentWorking.shift();
+                            schedule[offEmp.id][dayKey] = { type: 'Folga', reason: 'Equipe Reduzida de Domingo' };
+                            todayOffs.push(offEmp.id);
+                        }
+                    }
+                }
+
+                // Balance weekday off days so workers don't pass 6 consecutive days
+                if (!isSunday) {
+                    available.forEach(e => {
+                        if (!todayOffs.includes(e.id) && empState[e.id].consecutiveWorkDays >= 5) {
+                            if (Math.random() < 0.35) {
+                                schedule[e.id][dayKey] = { type: 'Folga', reason: 'Folga Semanal Rotativa' };
+                                todayOffs.push(e.id);
+                            }
+                        }
+                    });
+                }
+
+                let workingPool = available.filter(e => !todayOffs.includes(e.id));
+
+                function pullWorker(condition, shiftReq, desiredParity = null) {
+                    let candidates = workingPool.filter(condition);
+                    if (candidates.length === 0) return null;
+
+                    // 1. Candidate matching shift and desired ergonomic parity
+                    if (shiftReq && desiredParity) {
+                        let bestMatch = candidates.find(e => 
+                            (e.preferredShift === shiftReq || e.preferredShift === 'any') && 
+                            empState[e.id].lastParity !== desiredParity
+                        );
+                        if (bestMatch) {
+                            workingPool = workingPool.filter(e => e.id !== bestMatch.id);
+                            return bestMatch;
+                        }
+                    }
+
+                    // 2. Candidate matching shift
+                    if (shiftReq) {
+                        let shiftMatch = candidates.find(e => e.preferredShift === shiftReq || e.preferredShift === 'any');
+                        if (shiftMatch) {
+                            workingPool = workingPool.filter(e => e.id !== shiftMatch.id);
+                            return shiftMatch;
+                        }
+                    }
+
+                    // 3. Fallback choice
+                    let choice = candidates[0];
+                    workingPool = workingPool.filter(e => e.id !== choice.id);
+                    return choice;
+                }
+
+                // --- ASSIGNMENT DISTRIBUTION ---
+                if (isSunday) {
+                    // SUNDAY ASSIGNMENT (6 Operators Total: 3 at 07:00, 3 at 08:00)
+                    // Entrada 08:00 (3 ops): Cx 10 (Boletos), Cx 12, Cx 2 (Rápido)
+                    // Entrada 07:00 (3 ops): Cx 1 (Rápido), Cx 4, Cx 5
+
+                    // Entrada 08:00
+                    let cx10 = pullWorker(e => e.trained10, 'Fechamento') || pullWorker(e => e.trained10, null);
+                    if (cx10) assignWorker(cx10, 'Cx 10 (Boletos)', 'Especial', 'Entrada 08:00', 10);
+
+                    let cx12 = pullWorker(e => true, 'Fechamento') || pullWorker(e => true, null);
+                    if (cx12) assignWorker(cx12, 'Cx 12', 'Normal', 'Entrada 08:00', 12);
+
+                    let rapido2 = pullWorker(e => true, null);
+                    if (rapido2) assignWorker(rapido2, 'Cx 2 (Rápido)', 'Rápido', 'Entrada 08:00', 2);
+
+                    // Entrada 07:00
+                    let rapido1 = pullWorker(e => true, 'Abertura') || pullWorker(e => true, null);
+                    if (rapido1) assignWorker(rapido1, 'Cx 1 (Rápido)', 'Rápido', 'Entrada 07:00', 1);
+
+                    let std1 = pullWorker(e => true, null);
+                    if (std1) assignWorker(std1, 'Cx 4', 'Normal', 'Entrada 07:00', 4);
+
+                    let std2 = pullWorker(e => true, null);
+                    if (std2) assignWorker(std2, 'Cx 5', 'Normal', 'Entrada 07:00', 5);
+
+                } else {
+                    // WEEKDAY ASSIGNMENTS (Abertura, Intermediário, Fechamento, Fixo)
+                    
+                    // 1. Cx 11 Fixed (1 Operator)
+                    let cx11 = pullWorker(e => e.fixed11, 'Fixo');
+                    if (cx11) assignWorker(cx11, 'Cx 11', 'Fixo', 'Fixo', 11);
+
+                    // 2. Cx 10 (Boletos / Compras - ONLY Cx 10 and 12 have 2 operators: Abertura & Fechamento)
+                    let cx10A = pullWorker(e => e.trained10, 'Abertura');
+                    if (cx10A) assignWorker(cx10A, 'Cx 10 (Boletos)', 'Especial', 'Abertura', 10);
+
+                    let cx10F = pullWorker(e => e.trained10, 'Fechamento');
+                    if (cx10F) assignWorker(cx10F, 'Cx 10 (Boletos)', 'Especial', 'Fechamento', 10);
+
+                    // 3. Cx 12 (ONLY Cx 10 and 12 have 2 operators: Abertura & Fechamento)
+                    let cx12A = pullWorker(e => true, 'Abertura');
+                    if (cx12A) assignWorker(cx12A, 'Cx 12', 'Normal', 'Abertura', 12);
+
+                    let cx12F = pullWorker(e => true, 'Fechamento');
+                    if (cx12F) assignWorker(cx12F, 'Cx 12', 'Normal', 'Fechamento', 12);
+
+                    // 4. Standard Caixas (1 to 9): Exactly 1 operator per register for the day!
+                    let availableCaixas = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                    let preferredShiftOrder = ['Abertura', 'Intermediário', 'Fechamento', 'any'];
+
+                    preferredShiftOrder.forEach(shiftReq => {
+                        let matchingWorkers = workingPool.filter(e => shiftReq === 'any' || e.preferredShift === shiftReq || e.preferredShift === 'any');
+                        matchingWorkers.forEach(w => {
+                            if (availableCaixas.length === 0 || !workingPool.some(e => e.id === w.id)) return;
+                            
+                            // Ergonomic parity preference (Odd / Even)
+                            let desiredParity = (empState[w.id].lastParity === 'odd') ? 'even' : 'odd';
+                            let chosenCxIdx = availableCaixas.findIndex(c => (c % 2 === 0) === (desiredParity === 'even'));
+                            if (chosenCxIdx === -1) chosenCxIdx = 0;
+                            
+                            let chosenCx = availableCaixas[chosenCxIdx];
+                            availableCaixas.splice(chosenCxIdx, 1);
+
+                            let assignedShift = (w.preferredShift !== 'any' && w.preferredShift !== 'Fixo') ? w.preferredShift : (shiftReq !== 'any' ? shiftReq : 'Abertura');
+                            let pulled = pullWorker(e => e.id === w.id, assignedShift);
+                            if (pulled) {
+                                let isRapido = chosenCx <= 3;
+                                assignWorker(pulled, `Cx ${chosenCx}` + (isRapido ? ' (Rápido)' : ''), isRapido ? 'Rápido' : 'Normal', assignedShift, chosenCx);
+                            }
+                        });
+                    });
+                }
+
+                // Remaining unassigned working staff assigned as Support / Apoio
+                while (workingPool.length > 0) {
+                    let w = workingPool.shift();
+                    let assignedShift = (w.preferredShift !== 'any' && w.preferredShift !== 'Fixo') ? w.preferredShift : 'Intermediário';
+                    assignWorker(w, 'Apoio/Reserva', 'Apoio', assignedShift, null);
+                }
+
+                function assignWorker(emp, caixaName, type, shiftName, registerNum) {
+                    schedule[emp.id][dayKey] = {
+                        caixa: caixaName,
+                        type: type,
+                        shift: shiftName,
+                        registerNum: registerNum
+                    };
+
+                    empState[emp.id].consecutiveWorkDays++;
+                    if (isSunday) {
+                        empState[emp.id].workedSundayInWeek[weekIdx] = true;
+                    }
+                    if (registerNum !== null) {
+                        empState[emp.id].lastParity = (registerNum % 2 === 0) ? 'even' : 'odd';
+                    }
+                }
+
+                todayOffs.forEach(id => {
+                    empState[id].consecutiveWorkDays = 0;
+                });
+            });
+
+            return { schedule, datesList };
+        }
+
+        function renderScheduleUI(resultData, isMonthly) {
+            const { datesList } = resultData;
+
+            // Populate Day Selector for Matrix View
+            daySelectorMatrix.innerHTML = '';
+            datesList.forEach(d => {
+                let opt = document.createElement('option');
+                opt.value = d.id;
+                opt.textContent = d.dateLabel;
+                daySelectorMatrix.appendChild(opt);
+            });
+
+            renderMatrixView(datesList[0].id);
+            renderGeneralView(resultData);
+
+            scheduleTitle.innerHTML = `<i class="fa-solid fa-calendar-check text-indigo-600"></i> ${isMonthly ? 'Escala Mensal Completa' : 'Escala Semanal de Caixas'}`;
+            scheduleSection.classList.remove('hidden');
+            
+            // Scroll smoothly to output
+            scheduleSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderMatrixView(dateId) {
+            const { schedule, datesList } = currentScheduleData;
+            const dateObj = datesList.find(d => d.id === dateId);
+            if (!dateObj) return;
+
+            const isSunday = dateObj.isSunday;
+
+            // Set Header Columns
+            if (isSunday) {
+                matrixTableHeader.innerHTML = `
+                    <tr>
+                        <th class="p-3 border-r border-slate-200 w-1/4">Identificação do Caixa</th>
+                        <th class="p-3 border-r border-slate-200 text-center w-3/8 bg-indigo-50/50">
+                            Entrada 07:00
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(07:00 às 14:00 - Cx 1 Rápido, Cx 4, Cx 5)</span>
+                        </th>
+                        <th class="p-3 text-center w-3/8 bg-blue-50/50">
+                            Entrada 08:00
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(08:00 às 14:00 - Cx 10 Boletos, Cx 12, Cx 2 Rápido)</span>
+                        </th>
+                    </tr>
+                `;
+            } else {
+                matrixTableHeader.innerHTML = `
+                    <tr>
+                        <th class="p-3 border-r border-slate-200 w-1/5">Identificação do Caixa</th>
+                        <th class="p-3 border-r border-slate-200 text-center font-bold text-slate-800">
+                            Abertura
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(07:00 às 16:20)</span>
+                        </th>
+                        <th class="p-3 border-r border-slate-200 text-center font-bold text-slate-800">
+                            Intermediário
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(10:00 às 19:00)</span>
+                        </th>
+                        <th class="p-3 border-r border-slate-200 text-center font-bold text-slate-800">
+                            Fechamento
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(11:00 às 20:20)</span>
+                        </th>
+                        <th class="p-3 text-center font-bold text-slate-800">
+                            Fixo
+                            <span class="block text-[10px] text-slate-500 font-normal lowercase">(08:00 às 15:00)</span>
+                        </th>
+                    </tr>
+                `;
+            }
+
+            // Define Caixas List 1 to 12
+            let caixasOrder = [
+                'Cx 1 (Rápido)', 'Cx 2 (Rápido)', 'Cx 3 (Rápido)',
+                'Cx 4', 'Cx 5', 'Cx 6', 'Cx 7', 'Cx 8', 'Cx 9',
+                'Cx 10 (Boletos)', 'Cx 11', 'Cx 12', 'Apoio/Reserva'
+            ];
+
+            let matrixMap = {};
+            caixasOrder.forEach(c => matrixMap[c] = {});
+
+            // Populate mapping
+            employees.forEach(emp => {
+                let cell = schedule[emp.id][dateId];
+                if (cell && cell.type !== 'Folga') {
+                    let cName = cell.caixa;
+                    if (!matrixMap[cName]) matrixMap[cName] = {};
+                    matrixMap[cName][cell.shift] = emp;
+                }
+            });
+
+            matrixTableBody.innerHTML = '';
+
+            caixasOrder.forEach(caixaName => {
+                let turns = matrixMap[caixaName] || {};
+                let isCx10 = caixaName.includes('10');
+                let isCx11 = caixaName.includes('11');
+                let isCx12 = caixaName.includes('12');
+                let isRapido = caixaName.includes('Rápido');
+
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                // Caixa Name Label & Badge
+                let caixaBadge = `<span class="font-bold text-slate-800 text-xs">${caixaName}</span>`;
+                if (isCx10) caixaBadge += `<span class="block text-[10px] text-blue-600 font-semibold">Pagamentos / Boletos</span>`;
+                if (isCx11) caixaBadge += `<span class="block text-[10px] text-purple-600 font-semibold">Horário Fixo</span>`;
+                if (isCx12) caixaBadge += `<span class="block text-[10px] text-indigo-600 font-semibold">Turno Duplo</span>`;
+                if (isRapido) caixaBadge += `<span class="block text-[10px] text-emerald-600 font-semibold">Até 10 Itens</span>`;
+
+                let leftCellClass = "p-3 border-r border-slate-200 bg-slate-50/80";
+                if (isCx10) leftCellClass = "p-3 border-r border-slate-200 bg-blue-50/60";
+                if (isCx11) leftCellClass = "p-3 border-r border-slate-200 bg-purple-50/60";
+                if (isCx12) leftCellClass = "p-3 border-r border-slate-200 bg-indigo-50/60";
+
+                const renderOperatorCard = (empObj) => {
+                    if (!empObj) {
+                        return `<div class="h-9 flex items-center justify-center text-slate-300 font-mono text-xs border border-dashed border-slate-200 rounded-lg">-</div>`;
+                    }
+                    let parityTag = '';
+                    if (caixaName.startsWith('Cx ')) {
+                        let numStr = caixaName.replace('Cx ', '').split(' ')[0];
+                        let num = parseInt(numStr);
+                        if (!isNaN(num)) {
+                            parityTag = `<span class="text-[9px] px-1 bg-white/30 rounded font-bold">${num % 2 === 0 ? 'Par' : 'Ímpar'}</span>`;
+                        }
+                    }
+
+                    return `
+                        <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-sm text-xs flex items-center justify-between gap-2">
+                            <span class="font-bold truncate">${empObj.name}</span>
+                            ${parityTag}
+                        </div>
+                    `;
+                };
+
+                if (isSunday) {
+                    tr.innerHTML = `
+                        <td class="${leftCellClass}">${caixaBadge}</td>
+                        <td class="p-2 border-r border-slate-200 align-middle">${renderOperatorCard(turns['Entrada 07:00'])}</td>
+                        <td class="p-2 align-middle">${renderOperatorCard(turns['Entrada 08:00'] || turns['Fixo'])}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td class="${leftCellClass}">${caixaBadge}</td>
+                        <td class="p-2 border-r border-slate-200 align-middle">${renderOperatorCard(turns['Abertura'])}</td>
+                        <td class="p-2 border-r border-slate-200 align-middle">${renderOperatorCard(turns['Intermediário'])}</td>
+                        <td class="p-2 border-r border-slate-200 align-middle">${renderOperatorCard(turns['Fechamento'])}</td>
+                        <td class="p-2 align-middle">${renderOperatorCard(turns['Fixo'])}</td>
+                    `;
+                }
+
+                matrixTableBody.appendChild(tr);
+            });
+        }
+
+        daySelectorMatrix.addEventListener('change', (e) => {
+            if (currentScheduleData) {
+                renderMatrixView(e.target.value);
+            }
+        });
+
+        function renderGeneralView(resultData) {
+            const { schedule, datesList } = resultData;
+
+            // Render Header
+            generalHeader.innerHTML = '';
+            let trH = document.createElement('tr');
+            let hHTML = `<th class="p-3 sticky-col font-bold border-r border-slate-200 min-w-[160px]">Operador</th>`;
+            
+            datesList.forEach(d => {
+                let sunClass = d.isSunday ? 'bg-amber-100 text-amber-900 font-bold' : '';
+                hHTML += `<th class="p-2 border-r border-slate-200 text-center text-[10px] ${sunClass}">${d.dateLabel}</th>`;
+            });
+            trH.innerHTML = hHTML;
+            generalHeader.appendChild(trH);
+
+            // Render Body
+            generalBody.innerHTML = '';
+            employees.forEach(emp => {
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 border-b border-slate-100";
+
+                let rHTML = `<td class="p-3 sticky-col font-bold text-slate-800 border-r border-slate-200 bg-white">
+                    <div>${emp.name}</div>
+                    <div class="text-[10px] font-normal text-slate-400 capitalize">${emp.gender === 'female' ? 'Feminino' : 'Masculino'}</div>
+                </td>`;
+
+                datesList.forEach(d => {
+                    let cell = schedule[emp.id][d.id];
+                    if (!cell || cell.type === 'Folga') {
+                        let reason = cell ? (cell.reason || 'Folga') : 'Folga';
+                        rHTML += `<td class="p-2 border-r border-slate-200 text-center bg-rose-50/60 align-middle">
+                            <span class="inline-block px-2 py-0.5 bg-rose-100 text-rose-700 font-bold text-[10px] rounded-md uppercase" title="${reason}">FOLGA</span>
+                        </td>`;
+                    } else {
+                        let badgeStyle = 'bg-slate-100 text-slate-800 border-slate-200';
+                        if (cell.type === 'Especial') badgeStyle = 'bg-blue-100 text-blue-900 border-blue-200 font-bold';
+                        if (cell.type === 'Fixo') badgeStyle = 'bg-purple-100 text-purple-900 border-purple-200 font-bold';
+                        if (cell.type === 'Rápido') badgeStyle = 'bg-emerald-100 text-emerald-900 border-emerald-200 font-bold';
+
+                        rHTML += `<td class="p-2 border-r border-slate-200 align-top min-w-[110px]">
+                            <div class="flex flex-col gap-1">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] border ${badgeStyle} text-center truncate">${cell.caixa}</span>
+                                <span class="text-[10px] font-bold text-slate-700 uppercase text-center">${cell.shift}</span>
+                            </div>
+                        </td>`;
+                    }
+                });
+
+                tr.innerHTML = rHTML;
+                generalBody.appendChild(tr);
+            });
+        }
+
+        tabBtnCaixas.addEventListener('click', () => {
+            tabBtnCaixas.className = "py-2.5 px-4 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition cursor-pointer";
+            tabBtnColaboradores.className = "py-2.5 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center gap-2 transition cursor-pointer";
+            
+            tabContentCaixas.classList.remove('hidden');
+            tabContentColaboradores.classList.add('hidden');
+        });
+
+        tabBtnColaboradores.addEventListener('click', () => {
+            tabBtnColaboradores.className = "py-2.5 px-4 text-xs font-bold border-b-2 border-indigo-600 text-indigo-600 flex items-center gap-2 transition cursor-pointer";
+            tabBtnCaixas.className = "py-2.5 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center gap-2 transition cursor-pointer";
+            
+            tabContentColaboradores.classList.remove('hidden');
+            tabContentCaixas.classList.add('hidden');
+        });
+
+        btnExportPDF.addEventListener('click', () => {
+            const isMatrixTab = !tabContentCaixas.classList.contains('hidden');
+            const element = isMatrixTab ? document.getElementById('pdfContainerMatrix') : document.getElementById('pdfContainerGeneral');
+            
+            const subtitleEl = isMatrixTab ? document.getElementById('printSubtitleMatrix') : document.getElementById('printSubtitleGeneral');
+            subtitleEl.parentElement.classList.remove('hidden');
+
+            const opt = {
+                margin:       6,
+                filename:     isMatrixTab ? 'grade-caixas-supermercado.pdf' : 'escala-colaboradores-supermercado.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+
+            showToast('Gerando documento PDF...', 'info');
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                subtitleEl.parentElement.classList.add('hidden');
+                showToast('Download do PDF concluído!', 'success');
+            });
+        });
+    </script>
+</body>
+</html>
